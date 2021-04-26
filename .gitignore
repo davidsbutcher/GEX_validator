@@ -4,4 +4,4 @@
 .httr-oauth
 .DS_Store
 
-app/shiny_bookmarks
+app/shiny_bookmarks/
