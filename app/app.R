@@ -293,11 +293,6 @@ server <-
                 }
             )
 
-        iterator <-
-            reactiveValues(
-                i = 1,
-                j = 1
-            )
 
         reactive_plot <-
             reactive(
@@ -320,11 +315,17 @@ server <-
                 }
             )
 
+        # Reactive values ---------------------------------------------------------
+
+        iterator <-
+            reactiveValues(
+                i = 1,
+                j = 1
+            )
 
         validated_plots <-
             reactiveValues()
 
-        # Create reactive expressions for csv path and name
 
 
         # Listeners ---------------------------------------------------------------
@@ -652,12 +653,6 @@ server <-
                 iterator$i <- state$values$iterator_i
                 iterator$j <- state$values$iterator_j
                 validated_plots <- state$values$validated_plots
-
-                output$plot <-
-                    renderPlot(
-                        {reactive_plot()},
-                        res = 200
-                    )
             }
         )
 
