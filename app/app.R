@@ -88,22 +88,21 @@ ui <-
                 # Main Panel --------------------------------------------------------------
 
                 mainPanel(
-                    uiOutput("results_test"),
-                    textOutput("validation"),
-                    splitLayout(
-                        "SEQUENCE NAME",
-                        textOutput("sequence_i"),
-                        "SPECTRUM NUM.",
-                        textOutput("specnum_j"),
-                        "/",
-                        textOutput("speclength_j")
-                    ),
+                    # uiOutput("results_test"),
+                    # textOutput("validation"),
+                    # splitLayout(
+                    #     "SEQUENCE NAME",
+                    #     textOutput("sequence_i"),
+                    #     "SPECTRUM NUM.",
+                    #     textOutput("specnum_j"),
+                    #     "/",
+                    #     textOutput("speclength_j")
+                    # ),
                     plotOutput(
                         "plot",
                         width = "1600px",
                         height = "900px"
                     ),
-                    textOutput("plot_missing"),
                     actionButton("truepos", "True Positive", icon = icon("check-circle")),
                     actionButton("falsepos", "False Positive", icon = icon("times-circle")),
                     actionButton("goback", "Go Back", icon = icon("backward"))
@@ -333,10 +332,6 @@ server <-
         listener_upload <-
             reactive(
                 {
-                    validate(
-                        need(dir_path(), "")
-                    )
-
                     list(
                         input$GEXresultsdir
                     )
@@ -638,6 +633,34 @@ server <-
             input$bookmark,
             {session$doBookmark()}
         )
+
+
+        # Bookmarking -------------------------------------------------------------
+
+        # Save extra values in state$values when we bookmark
+        onBookmark(
+            function(state) {
+                state$values$iterator_i <- iterator$i
+                state$values$iterator_j <- iterator$j
+                state$values$validated_plots <- validated_plots
+            }
+        )
+
+        # Read values from state$values when we restore
+        onRestore(
+            function(state) {
+                iterator$i <- state$values$iterator_i
+                iterator$j <- state$values$iterator_j
+                validated_plots <- state$values$validated_plots
+
+                output$plot <-
+                    renderPlot(
+                        {reactive_plot()},
+                        res = 200
+                    )
+            }
+        )
+
 
         # Download handlers -------------------------------------------------------
 
