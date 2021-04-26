@@ -88,16 +88,16 @@ ui <-
                 # Main Panel --------------------------------------------------------------
 
                 mainPanel(
-                    # uiOutput("results_test"),
-                    # textOutput("validation"),
-                    # splitLayout(
-                    #     "SEQUENCE NAME",
-                    #     textOutput("sequence_i"),
-                    #     "SPECTRUM NUM.",
-                    #     textOutput("specnum_j"),
-                    #     "/",
-                    #     textOutput("speclength_j")
-                    # ),
+                    uiOutput("results_test"),
+                    textOutput("validation"),
+                    splitLayout(
+                        "SEQUENCE NAME",
+                        textOutput("sequence_i"),
+                        "SPECTRUM NUM.",
+                        textOutput("specnum_j"),
+                        "/",
+                        textOutput("speclength_j")
+                    ),
                     plotOutput(
                         "plot",
                         width = "1600px",
@@ -140,10 +140,25 @@ server <-
         disable("startValidation")
         disable("saveValidSpectra")
 
-        # Hide panels which are only shown conditionally
 
+        # Mutable outputs ---------------------------------------------------------
 
-        # Disable buttons which are selectively enabled later
+        output$sequence_i <-
+            renderText({test_seqs()[iterator$i]})
+
+        output$specnum_j <-
+            renderText(
+                {
+                    validate(
+                        need(spec_objects_length(), "")
+                    )
+
+                    iterator$j
+                }
+            )
+
+        output$speclength_j <-
+            renderText({spec_objects_length()})
 
 
         # Reactives ---------------------------------------------------------------
@@ -326,8 +341,6 @@ server <-
         validated_plots <-
             reactiveValues()
 
-
-
         # Listeners ---------------------------------------------------------------
 
         listener_upload <-
@@ -359,7 +372,9 @@ server <-
                 #         }
                 #     )
 
-
+                iterator$i <- 1
+                iterator$j <- 1
+                output$plot <- NULL
                 enable("startValidation")
 
             }
@@ -371,9 +386,6 @@ server <-
                 output$validation <- NULL
                 output$results_test <- NULL
 
-                iterator$i <- 1
-                iterator$j <- 1
-
                 disable("startValidation")
                 disable("saveValidSpectra")
 
@@ -384,15 +396,6 @@ server <-
                         {reactive_plot()},
                         res = 200
                     )
-
-                output$sequence_i <-
-                    renderText({test_seqs()[iterator$i]})
-
-                output$specnum_j <-
-                    renderText({iterator$j})
-
-                output$speclength_j <-
-                    renderText({spec_objects_length()})
 
                 # Enable buttons
 
@@ -406,45 +409,8 @@ server <-
         observeEvent(
             input$truepos,
             {
-
                 validated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <-
                     reactive_plot()
-
-                if (iterator$j < spec_objects_length()) {
-
-                    iterator$j <- iterator$j + 1
-
-                } else if (iterator$i < length(spec_objects())) {
-
-                    iterator$j <- 1
-                    iterator$i <- iterator$i + 1
-
-                } else {
-
-                    output$results_test <-
-                        renderText({"VALIDATION COMPLETE"})
-
-                    disable("truepos")
-                    disable("falsepos")
-                    disable("goback")
-                    enable("saveValidSpectra")
-
-                }
-
-                output$sequence_i <-
-                    renderText({test_seqs()[iterator$i]})
-
-                output$specnum_j <-
-                    renderText({iterator$j})
-
-                output$speclength_j <-
-                    renderText({spec_objects_length()})
-
-                output$plot <-
-                    renderPlot(
-                        {reactive_plot()},
-                        res = 200
-                    )
             }
         )
 
@@ -453,7 +419,15 @@ server <-
             {
                 validated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <-
                     NULL
+            }
+        )
 
+        observeEvent(
+            list(
+                input$truepos,
+                input$falsepos
+            ),
+            {
                 if (iterator$j < spec_objects_length()) {
 
                     iterator$j <- iterator$j + 1
@@ -474,15 +448,6 @@ server <-
                     enable("saveValidSpectra")
 
                 }
-
-                output$sequence_i <-
-                    renderText({test_seqs()[iterator$i]})
-
-                output$specnum_j <-
-                    renderText({iterator$j})
-
-                output$speclength_j <-
-                    renderText({spec_objects_length()})
 
                 output$plot <-
                     renderPlot(
@@ -534,20 +499,22 @@ server <-
                     .[2]
 
                 # Get list of sequence names
+                # Might not need this.. causes problems if a sequence
+                # has no validated fragments
 
-                list_names <-
-                    purrr::map_chr(
-                        spec_objects(),
-                        ~basename(.x) %>%
-                            stringr::str_extract("[^_]+")
-                    )
+                # list_names <-
+                #     purrr::map_chr(
+                #         spec_objects(),
+                #         ~basename(.x) %>%
+                #             stringr::str_extract("[^_]+")
+                #     )
 
                 # Save validated plots to list
 
                 validated_plots_list <-
                     reactiveValuesToList(validated_plots) %>%
                     {.[rev(names(.))]} %>%
-                    purrr::set_names(list_names) %>%
+                    # purrr::set_names(list_names) %>%
                     purrr::compact()
 
                 # marrange and save validated plots
