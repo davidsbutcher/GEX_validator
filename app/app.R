@@ -9,6 +9,7 @@ library(tippy)
 library(shinydashboard)
 library(shinyWidgets)
 library(shinyjs)
+library(shinybusy)
 
 # UI ----------------------------------------------------------------------
 
@@ -40,6 +41,13 @@ ui <-
                 )
             ),
 
+            add_busy_spinner(
+                spin = "fading-circle",
+                timeout = 500,
+                height = '100px',
+                width = '100px'
+            ),
+
             sidebarLayout(
 
                 # Sidebar -----------------------------------------------------------------
@@ -66,8 +74,8 @@ ui <-
                             br(),
                             br(),
                             actionButton(
-                                "saveValidSpectra",
-                                "Save valid spectra"
+                                "saveSpectra",
+                                "Save spectra"
                             ),
                             br(),
                             br(),
@@ -88,15 +96,29 @@ ui <-
                 # Main Panel --------------------------------------------------------------
 
                 mainPanel(
+                    width = 10,
                     uiOutput("results_test"),
                     textOutput("validation"),
-                    splitLayout(
-                        "SEQUENCE NAME",
-                        textOutput("sequence_i"),
-                        "SPECTRUM NUM.",
-                        textOutput("specnum_j"),
-                        "/",
-                        textOutput("speclength_j")
+                    h4(
+                        splitLayout(
+                            splitLayout(
+                                cellWidths = 125,
+                                "TOTAL SEQS:",
+                                textOutput("specnum_total")
+                            ),
+                            splitLayout(
+                                cellWidths = 175,
+                                "SEQ NAME:",
+                                textOutput("sequence_i")
+                            ),
+                            splitLayout(
+                                cellWidths = 125,
+                                "SPEC NUM:",
+                                textOutput("specnum_j"),
+                                "/",
+                                textOutput("speclength_j")
+                            )
+                        )
                     ),
                     plotOutput(
                         "plot",
@@ -138,7 +160,7 @@ server <-
         disable("falsepos")
         disable("goback")
         disable("startValidation")
-        disable("saveValidSpectra")
+        disable("saveSpectra")
 
 
         # Mutable outputs ---------------------------------------------------------
@@ -154,6 +176,17 @@ server <-
                     )
 
                     iterator$j
+                }
+            )
+
+        output$specnum_total <-
+            renderText(
+                {
+                    validate(
+                        need(spec_objects(), "")
+                    )
+
+                    length(spec_objects())
                 }
             )
 
@@ -341,6 +374,9 @@ server <-
         validated_plots <-
             reactiveValues()
 
+        invalidated_plots <-
+            reactiveValues()
+
         # Listeners ---------------------------------------------------------------
 
         listener_upload <-
@@ -374,7 +410,10 @@ server <-
 
                 iterator$i <- 1
                 iterator$j <- 1
+                output$results_test <- NULL
                 output$plot <- NULL
+                validated_plots <- reactiveValues()
+                invalidated_plots <- reactiveValues()
                 enable("startValidation")
 
             }
@@ -387,7 +426,7 @@ server <-
                 output$results_test <- NULL
 
                 disable("startValidation")
-                disable("saveValidSpectra")
+                disable("saveSpectra")
 
                 # Show the first plot
 
@@ -417,8 +456,8 @@ server <-
         observeEvent(
             input$falsepos,
             {
-                validated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <-
-                    NULL
+                invalidated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <-
+                    reactive_plot()
             }
         )
 
@@ -445,7 +484,7 @@ server <-
                     disable("truepos")
                     disable("falsepos")
                     disable("goback")
-                    enable("saveValidSpectra")
+                    enable("saveSpectra")
 
                 }
 
@@ -475,7 +514,7 @@ server <-
         )
 
         observeEvent(
-            input$saveValidSpectra,
+            input$saveSpectra,
             {
 
                 output$results_test <-
@@ -509,7 +548,7 @@ server <-
                 #             stringr::str_extract("[^_]+")
                 #     )
 
-                # Save validated plots to list
+                # Save validated/invalidated plots to lists
 
                 validated_plots_list <-
                     reactiveValuesToList(validated_plots) %>%
@@ -517,50 +556,111 @@ server <-
                     # purrr::set_names(list_names) %>%
                     purrr::compact()
 
-                # marrange and save validated plots
+                invalidated_plots_list <-
+                    reactiveValuesToList(invalidated_plots) %>%
+                    {.[rev(names(.))]} %>%
+                    # purrr::set_names(list_names) %>%
+                    purrr::compact()
 
-                spectra_MS2_marrange <-
-                    unlist(validated_plots_list, recursive = F) %>%
-                    purrr::flatten() %>%
-                    gridExtra::marrangeGrob(
-                        grobs = .,
-                        ncol = 5,
-                        nrow = 3,
-                        top = rawFile
+                # marrange and save plots
+
+                if (length(validated_plots_list) > 0) {
+
+                    valid_spectra_MS2_marrange <-
+                        unlist(validated_plots_list, recursive = F) %>%
+                        purrr::flatten() %>%
+                        gridExtra::marrangeGrob(
+                            grobs = .,
+                            ncol = 5,
+                            nrow = 3,
+                            top = rawFile
+                        )
+
+                    ggplot2::ggsave(
+                        filename =
+                            fs::path(
+                                dir_path(),
+                                paste0(
+                                    fs::path_ext_remove(rawFile),
+                                    "_validated_fragments",
+                                    sep = ""
+                                ),
+                                ext = "pdf"
+                            ),
+                        plot = valid_spectra_MS2_marrange,
+                        width = 20,
+                        height = 12,
+                        limitsize = FALSE
                     )
 
-                ggplot2::ggsave(
-                    filename =
-                        fs::path(
-                            dir_path(),
-                            paste0(
-                                fs::path_ext_remove(rawFile),
-                                "_validated_fragments",
-                                sep = ""
-                            ),
-                            ext = "pdf"
-                        ),
-                    plot = spectra_MS2_marrange,
-                    width = 20,
-                    height = 12,
-                    limitsize = FALSE
-                )
+                }
 
+                if (length(invalidated_plots_list) > 0) {
+
+                    invalid_spectra_MS2_marrange <-
+                        unlist(invalidated_plots_list, recursive = F) %>%
+                        purrr::flatten() %>%
+                        gridExtra::marrangeGrob(
+                            grobs = .,
+                            ncol = 5,
+                            nrow = 3,
+                            top = rawFile
+                        )
+
+                    ggplot2::ggsave(
+                        filename =
+                            fs::path(
+                                dir_path(),
+                                paste0(
+                                    fs::path_ext_remove(rawFile),
+                                    "_invalidated_fragments",
+                                    sep = ""
+                                ),
+                                ext = "pdf"
+                            ),
+                        plot = invalid_spectra_MS2_marrange,
+                        width = 20,
+                        height = 12,
+                        limitsize = FALSE
+                    )
+
+                }
 
                 # Extract data from ggplot labels
 
-                label_data <-
-                    purrr::map(
-                        unlist(validated_plots_list, recursive = F),
-                        ~.x[[1]][["layers"]][[2]][["geom_params"]][["label"]]
-                    ) %>%
-                    stringr::str_split_fixed("\n", n = 4) %>%
-                    tibble::as_tibble() %>%
-                    dplyr::select(-V4) %>%
-                    dplyr::mutate(V3 = as.numeric(stringr::str_extract(V3, "\\d{1,4}"))) %>%
-                    purrr::set_names(
-                        c("sequence_name", "ion", "charge")
-                    )
+                if (length(validated_plots_list) > 0) {
+
+                    label_data_valid <-
+                        purrr::map(
+                            unlist(validated_plots_list, recursive = F),
+                            ~.x[[1]][["layers"]][[2]][["geom_params"]][["label"]]
+                        ) %>%
+                        stringr::str_split_fixed("\n", n = 4) %>%
+                        tibble::as_tibble() %>%
+                        dplyr::select(-V4) %>%
+                        dplyr::mutate(V3 = as.numeric(stringr::str_extract(V3, "\\d{1,4}"))) %>%
+                        purrr::set_names(
+                            c("sequence_name", "ion", "charge")
+                        )
+
+                }
+
+                if (length(invalidated_plots_list) > 0) {
+
+                    label_data_invalid <-
+                        purrr::map(
+                            unlist(invalidated_plots_list, recursive = F),
+                            ~.x[[1]][["layers"]][[2]][["geom_params"]][["label"]]
+                        ) %>%
+                        stringr::str_split_fixed("\n", n = 4) %>%
+                        tibble::as_tibble() %>%
+                        dplyr::select(-V4) %>%
+                        dplyr::mutate(V3 = as.numeric(stringr::str_extract(V3, "\\d{1,4}"))) %>%
+                        purrr::set_names(
+                            c("sequence_name", "ion", "charge")
+                        )
+
+                }
 
                 # Load assigned fragments
 
@@ -572,27 +672,51 @@ server <-
                         )
                     )
 
-                # Combine label data with assigned fragments
+                # Combine label data with assigned fragments, write spreadsheets
 
-                validated_frags_spreadsheet <-
-                    dplyr::left_join(
-                        label_data,
-                        ass_frag
-                    ) %>%
-                    dplyr::select(
-                        raw_filename,
-                        dplyr::everything()
+                if (length(validated_plots_list) > 0) {
+
+                    validated_frags_spreadsheet <-
+                        dplyr::left_join(
+                            label_data_valid,
+                            ass_frag
+                        ) %>%
+                        dplyr::select(
+                            raw_filename,
+                            dplyr::everything()
+                        )
+
+                    writexl::write_xlsx(
+                        validated_frags_spreadsheet,
+                        fs::path(
+                            dir_path(),
+                            paste0(fs::path_ext_remove(rawFile), "_validated_fragments_MS2.xlsx")
+                        )
                     )
 
-                # Write spreadsheet
+                }
 
-                writexl::write_xlsx(
-                    validated_frags_spreadsheet,
-                    fs::path(
-                        dir_path(),
-                        paste0(fs::path_ext_remove(rawFile), "_validated_fragments_MS2.xlsx")
+                if (length(invalidated_plots_list) > 0) {
+
+                    invalidated_frags_spreadsheet <-
+                        dplyr::left_join(
+                            label_data_invalid,
+                            ass_frag
+                        ) %>%
+                        dplyr::select(
+                            raw_filename,
+                            dplyr::everything()
+                        )
+
+                    writexl::write_xlsx(
+                        invalidated_frags_spreadsheet,
+                        fs::path(
+                            dir_path(),
+                            paste0(fs::path_ext_remove(rawFile), "_invalidated_fragments_MS2.xlsx")
+                        )
                     )
-                )
+
+                }
 
             }
         )
@@ -611,6 +735,7 @@ server <-
                 state$values$iterator_i <- iterator$i
                 state$values$iterator_j <- iterator$j
                 state$values$validated_plots <- validated_plots
+                state$values$invalidated_plots <- invalidated_plots
             }
         )
 
@@ -620,11 +745,10 @@ server <-
                 iterator$i <- state$values$iterator_i
                 iterator$j <- state$values$iterator_j
                 validated_plots <- state$values$validated_plots
+                invalidated_plots <- state$values$invalidated_plots
             }
         )
 
-
-        # Download handlers -------------------------------------------------------
 
     }
 
