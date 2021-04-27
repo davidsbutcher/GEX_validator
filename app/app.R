@@ -79,9 +79,22 @@ ui <-
                             ),
                             br(),
                             br(),
-                            actionButton(
-                                "bookmark",
-                                "Bookmark state"
+                            # actionButton(
+                            #     "bookmark",
+                            #     "Bookmark state"
+                            # ),
+                            br(),
+                            br(),
+                            selectInput(
+                                "sequence_i",
+                                "SEQ NAME",
+                                choices = NULL
+                            ),
+                            br(),
+                            selectInput(
+                                "text_size",
+                                "TEXT SIZE",
+                                choices = c(12,20,28,36)
                             )
                         ),
                         tabPanel(
@@ -112,7 +125,7 @@ ui <-
                                 textOutput("sequence_i")
                             ),
                             splitLayout(
-                                cellWidths = 125,
+                                cellWidths = c(125,50,25,50),
                                 "SPEC NUM:",
                                 textOutput("specnum_j"),
                                 "/",
@@ -122,8 +135,8 @@ ui <-
                     ),
                     plotOutput(
                         "plot",
-                        width = "1600px",
-                        height = "900px"
+                        width = "1400px",
+                        height = "700px"
                     ),
                     actionButton("truepos", "True Positive", icon = icon("check-circle")),
                     actionButton("falsepos", "False Positive", icon = icon("times-circle")),
@@ -167,6 +180,7 @@ server <-
 
         output$sequence_i <-
             renderText({test_seqs()[iterator$i]})
+
 
         output$specnum_j <-
             renderText(
@@ -334,7 +348,8 @@ server <-
             reactive(
                 {
                     validate(
-                        need(is_valid(), "")
+                        need(is_valid(), ""),
+                        need(spec_objects(), "")
                     )
 
                     length(readRDS(spec_objects()[[iterator$i]])[[1]])
@@ -358,8 +373,24 @@ server <-
 
                         iterator$i <- iterator$i + 1
 
+                        updateSelectInput(
+                            session,
+                            "sequence_i",
+                            choices = test_seqs(),
+                            selected = test_seqs()[iterator$i]
+                        )
+
                     }
 
+                }
+            )
+
+        plot_theme <-
+            reactive(
+                {
+                    theme(
+                        text = element_text(size = input$text_size)
+                    )
                 }
             )
 
@@ -382,6 +413,7 @@ server <-
         listener_upload <-
             reactive(
                 {
+
                     list(
                         input$GEXresultsdir
                     )
@@ -389,6 +421,38 @@ server <-
             )
 
         # Observers ---------------------------------------------------------------
+
+        observeEvent(
+            input$sequence_i,
+            {
+                temp_i <- iterator$i
+                temp_j <- iterator$j
+
+                iterator$i <- which(test_seqs() == input$sequence_i)
+                iterator$j <- 1
+
+                if (spec_objects_length() == 0) {
+
+                    showModal(
+                        modalDialog(
+                            title = "Invalid sequence",
+                            "This sequence has no spectra. Please select a different sequence."
+                        )
+                    )
+
+                    iterator$i <- temp_i
+                    iterator$j <- temp_j
+
+                    updateSelectInput(
+                        session,
+                        "sequence_i",
+                        choices = test_seqs(),
+                        selected = test_seqs()[iterator$i]
+                    )
+
+                }
+            }
+        )
 
         observeEvent(
             listener_upload(),
@@ -428,12 +492,21 @@ server <-
                 disable("startValidation")
                 disable("saveSpectra")
 
+                updateSelectInput(
+                    session,
+                    "sequence_i",
+                    choices = test_seqs()
+                )
+
                 # Show the first plot
 
                 output$plot <-
-                    renderPlot(
-                        {reactive_plot()},
-                        res = 200
+                    renderCachedPlot(
+                        {
+                            reactive_plot()
+                        },
+                        cacheKeyExpr = paste0(test_seqs()[[iterator$i]], iterator$j, collapse = ""),
+                        res = 250
                     )
 
                 # Enable buttons
@@ -450,12 +523,18 @@ server <-
             {
                 validated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <-
                     reactive_plot()
+
+                invalidated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <-
+                    NULL
             }
         )
 
         observeEvent(
             input$falsepos,
             {
+                validated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <-
+                    NULL
+
                 invalidated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <-
                     reactive_plot()
             }
@@ -476,6 +555,13 @@ server <-
                     iterator$j <- 1
                     iterator$i <- iterator$i + 1
 
+                    updateSelectInput(
+                        session,
+                        "sequence_i",
+                        choices = test_seqs(),
+                        selected = test_seqs()[iterator$i]
+                    )
+
                 } else {
 
                     output$results_test <-
@@ -489,9 +575,10 @@ server <-
                 }
 
                 output$plot <-
-                    renderPlot(
+                    renderCachedPlot(
                         {reactive_plot()},
-                        res = 200
+                        cacheKeyExpr = paste0(test_seqs()[[iterator$i]], iterator$j, collapse = ""),
+                        res = 250
                     )
             }
         )
