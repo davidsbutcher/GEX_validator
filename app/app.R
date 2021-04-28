@@ -55,10 +55,10 @@ ui <-
                 sidebarPanel(
                     width = 2,
                     tabsetPanel(
-                        id = "mainpanel",
+                        id = "sidebarpanel",
                         type = "pills",
                         tabPanel(
-                            "Upload",
+                            "Load data",
                             br(),
                             shinyDirButton(
                                 "GEXresultsdir",
@@ -69,7 +69,7 @@ ui <-
                             br(),
                             actionButton(
                                 "startValidation",
-                                "Start Validation"
+                                "Start validation"
                             ),
                             br(),
                             br(),
@@ -90,12 +90,12 @@ ui <-
                                 "SEQ NAME",
                                 choices = NULL
                             ),
-                            br(),
-                            selectInput(
-                                "text_size",
-                                "TEXT SIZE",
-                                choices = c(12,20,28,36)
-                            )
+                            br()
+                            # selectInput(
+                            #     "text_size",
+                            #     "TEXT SIZE",
+                            #     choices = c(12,20,28,36)
+                            # )
                         ),
                         tabPanel(
                             "About",
@@ -110,37 +110,45 @@ ui <-
 
                 mainPanel(
                     width = 10,
-                    uiOutput("results_test"),
-                    textOutput("validation"),
-                    h4(
-                        splitLayout(
-                            splitLayout(
-                                cellWidths = 125,
-                                "TOTAL SEQS:",
-                                textOutput("specnum_total")
+                    tabsetPanel(
+                        id = "mainpanel",
+                        type = "tabs",
+                        tabPanel(
+                            "Plot",
+                            uiOutput("results_test"),
+                            h4(
+                                splitLayout(
+                                    splitLayout(
+                                        textOutput("validation")
+                                    ),
+                                    splitLayout(
+                                        cellWidths = 175,
+                                        "SEQ NAME:",
+                                        textOutput("sequence_i")
+                                    ),
+                                    splitLayout(
+                                        cellWidths = c(125,50,25,50),
+                                        "SPEC NUM:",
+                                        textOutput("specnum_j"),
+                                        "/",
+                                        textOutput("speclength_j")
+                                    )
+                                )
                             ),
-                            splitLayout(
-                                cellWidths = 175,
-                                "SEQ NAME:",
-                                textOutput("sequence_i")
+                            plotOutput(
+                                "plot",
+                                width = "1400px",
+                                height = "700px"
                             ),
-                            splitLayout(
-                                cellWidths = c(125,50,25,50),
-                                "SPEC NUM:",
-                                textOutput("specnum_j"),
-                                "/",
-                                textOutput("speclength_j")
-                            )
+                            actionButton("truepos", "True Positive", icon = icon("check-circle")),
+                            actionButton("falsepos", "False Positive", icon = icon("times-circle")),
+                            actionButton("goback", "Go Back", icon = icon("backward"))
+                        ),
+                        tabPanel(
+                            "Validated",
+                            tableOutput("validtable")
                         )
-                    ),
-                    plotOutput(
-                        "plot",
-                        width = "1400px",
-                        height = "700px"
-                    ),
-                    actionButton("truepos", "True Positive", icon = icon("check-circle")),
-                    actionButton("falsepos", "False Positive", icon = icon("times-circle")),
-                    actionButton("goback", "Go Back", icon = icon("backward"))
+                    )
                 ),
                 fluid = FALSE
             )
@@ -207,6 +215,41 @@ server <-
         output$speclength_j <-
             renderText({spec_objects_length()})
 
+        output$validation <-
+            renderText(
+                {
+                    validate(
+                        need(is_valid(), "GEX results not valid"),
+                        need(spec_objects(), "spec_objects() invalid")
+                    )
+
+
+                    if (length(reactiveValuesToList(complete_seqs)) == length(spec_objects())) {
+                        "ALL SEQUENCES COMPLETE"
+                    } else {
+                        paste0(length(reactiveValuesToList(complete_seqs)), "/", length(spec_objects()), " SEQUENCES COMPLETE", collapse = "")
+                    }
+                }
+            )
+
+        output$validtable <-
+            renderTable(
+                {
+                    validate(
+                        need(test_seqs(), "")
+                    )
+
+                    val_comp <- vector(mode = "logical", length = length(test_seqs()))
+                    comp_seqs <- unlist(reactiveValuesToList(complete_seqs))
+
+                    val_comp[which(comp_seqs == TRUE)] <- TRUE
+
+                    tibble::tibble(
+                        `Sequence Name` = test_seqs(),
+                        `Validation Complete` = val_comp
+                    )
+                }
+            )
 
         # Reactives ---------------------------------------------------------------
 
@@ -394,6 +437,31 @@ server <-
                 }
             )
 
+        checked_plots_number <-
+            reactive(
+                {
+                    valplots <-
+                        validated_plots[[as.character(iterator$i)]] %>%
+                        purrr::map(
+                            ~!is.null(.x)
+                        ) %>%
+                        unlist() %>%
+                        sum()
+
+                    invalplots <-
+                        invalidated_plots[[as.character(iterator$i)]] %>%
+                        purrr::map(
+                            ~!is.null(.x)
+                        ) %>%
+                        unlist() %>%
+                        sum()
+
+                    valplots + invalplots
+
+                }
+            )
+
+
         # Reactive values ---------------------------------------------------------
 
         iterator <-
@@ -406,6 +474,9 @@ server <-
             reactiveValues()
 
         invalidated_plots <-
+            reactiveValues()
+
+        complete_seqs <-
             reactiveValues()
 
         # Listeners ---------------------------------------------------------------
@@ -474,10 +545,12 @@ server <-
 
                 iterator$i <- 1
                 iterator$j <- 1
+
                 output$results_test <- NULL
                 output$plot <- NULL
                 validated_plots <- reactiveValues()
                 invalidated_plots <- reactiveValues()
+                complete_seqs <- reactiveValues()
                 enable("startValidation")
 
             }
@@ -486,7 +559,7 @@ server <-
         observeEvent(
             input$startValidation,
             {
-                output$validation <- NULL
+                # output$validation <- NULL
                 output$results_test <- NULL
 
                 disable("startValidation")
@@ -497,6 +570,10 @@ server <-
                     "sequence_i",
                     choices = test_seqs()
                 )
+
+                if (spec_objects_length() == checked_plots_number()) {
+                    complete_seqs[[as.character(iterator$i)]] <- TRUE
+                }
 
                 # Show the first plot
 
@@ -526,6 +603,7 @@ server <-
 
                 invalidated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <-
                     NULL
+
             }
         )
 
@@ -546,6 +624,11 @@ server <-
                 input$falsepos
             ),
             {
+
+                if (spec_objects_length() == checked_plots_number()) {
+                    complete_seqs[[as.character(iterator$i)]] <- TRUE
+                }
+
                 if (iterator$j < spec_objects_length()) {
 
                     iterator$j <- iterator$j + 1
@@ -564,13 +647,13 @@ server <-
 
                 } else {
 
-                    output$results_test <-
-                        renderText({"VALIDATION COMPLETE"})
-
-                    disable("truepos")
-                    disable("falsepos")
-                    disable("goback")
-                    enable("saveSpectra")
+                    # output$results_test <-
+                    #     renderText({"VALIDATION COMPLETE"})
+                    #
+                    # disable("truepos")
+                    # disable("falsepos")
+                    # disable("goback")
+                    # enable("saveSpectra")
 
                 }
 
@@ -580,6 +663,8 @@ server <-
                         cacheKeyExpr = paste0(test_seqs()[[iterator$i]], iterator$j, collapse = ""),
                         res = 250
                     )
+
+
             }
         )
 
