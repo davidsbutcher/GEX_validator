@@ -2,6 +2,7 @@
 library(magrittr)
 library(dplyr)
 library(ggplot2)
+library(DT)
 library(shiny)
 library(shinyBS)
 library(shinyFiles)
@@ -43,9 +44,9 @@ ui <-
 
             add_busy_spinner(
                 spin = "fading-circle",
-                timeout = 500,
-                height = '100px',
-                width = '100px'
+                timeout = 250,
+                height = '75px',
+                width = '75px'
             ),
 
             sidebarLayout(
@@ -142,11 +143,18 @@ ui <-
                             ),
                             actionButton("truepos", "True Positive", icon = icon("check-circle")),
                             actionButton("falsepos", "False Positive", icon = icon("times-circle")),
-                            actionButton("goback", "Go Back", icon = icon("backward"))
+                            actionButton("goback", "Go Back", icon = icon("backward")),
+                            br(),
+                            br(),
+                            actionButton("validateRemaining", "VALIDATE REMAINING", icon = icon("skull")),
+                            actionButton("invalidateRemaining", "INVALIDATE REMAINING", icon = icon("skull"))
                         ),
                         tabPanel(
                             "Validated",
-                            tableOutput("validtable")
+                            div(
+                                DTOutput("validtable", height = "700px"),
+                                style = "width: 1200px; height: 700px; overflow-y: scroll;"
+                            )
                         )
                     )
                 ),
@@ -225,15 +233,23 @@ server <-
 
 
                     if (length(reactiveValuesToList(complete_seqs)) == length(spec_objects())) {
+
+                        # disable("truepos")
+                        # disable("falsepos")
+                        # disable("goback")
+                        # enable("saveSpectra")
                         "ALL SEQUENCES COMPLETE"
+
                     } else {
+
                         paste0(length(reactiveValuesToList(complete_seqs)), "/", length(spec_objects()), " SEQUENCES COMPLETE", collapse = "")
+
                     }
                 }
             )
 
         output$validtable <-
-            renderTable(
+            renderDT(
                 {
                     validate(
                         need(test_seqs(), "")
@@ -248,7 +264,12 @@ server <-
                         `Sequence Name` = test_seqs(),
                         `Validation Complete` = val_comp
                     )
-                }
+                },
+                options =
+                    list(
+                        pageLength = 15,
+                        lengthChange = FALSE
+                    )
             )
 
         # Reactives ---------------------------------------------------------------
@@ -416,6 +437,8 @@ server <-
 
                         iterator$i <- iterator$i + 1
 
+                        complete_seqs[[as.character(iterator$i)]] <- TRUE
+
                         updateSelectInput(
                             session,
                             "sequence_i",
@@ -494,6 +517,11 @@ server <-
         # Observers ---------------------------------------------------------------
 
         observeEvent(
+            input$bookmark,
+            {session$doBookmark()}
+        )
+
+        observeEvent(
             input$sequence_i,
             {
                 temp_i <- iterator$i
@@ -563,7 +591,7 @@ server <-
                 output$results_test <- NULL
 
                 disable("startValidation")
-                disable("saveSpectra")
+                enable("saveSpectra")
 
                 updateSelectInput(
                     session,
@@ -624,6 +652,10 @@ server <-
                 input$falsepos
             ),
             {
+                # Remove the output$results_test value if truepos or falsepos
+                #are pressed
+
+                output$results_test <- NULL
 
                 if (spec_objects_length() == checked_plots_number()) {
                     complete_seqs[[as.character(iterator$i)]] <- TRUE
@@ -671,6 +703,10 @@ server <-
         observeEvent(
             input$goback,
             {
+                # Remove the output$results_test value if goback
+                # is pressed
+
+                output$results_test <- NULL
 
                 if (iterator$j > 1) {
 
@@ -686,11 +722,57 @@ server <-
         )
 
         observeEvent(
+            input$validateRemaining,
+            {
+                ask_confirmation(
+                    "confirmValRemain",
+                    title = "Validate remaining fragments",
+                    text = "Are you sure you wish to validate all remaining fragments?",
+                    type = "question",
+                    btn_labels = c("Cancel", "Confirm"),
+                    btn_colors = NULL,
+                    closeOnClickOutside = FALSE,
+                    showCloseButton = FALSE,
+                    html = FALSE,
+                    session = shiny::getDefaultReactiveDomain()
+                )
+            }
+        )
+
+        observeEvent(
+            input$confirmValRemain,
+            {
+                for (i in seq_along(length(spec_objects()))) {
+
+                    iterator$i <- i
+
+                    for (j in seq_along(spec_objects_length())) {
+
+                        iterator$j <- j
+
+                        # if (is.null(validated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]]) == TRUE & is.null(invalidated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]]) == TRUE) {
+
+                        validated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <- reactive_plot()
+
+                        # }
+
+                    }
+
+                    complete_seqs[[as.character(iterator$i)]] <- TRUE
+
+                }
+            }
+        )
+
+        observeEvent(
+            input$invalidateRemaining,
+            {
+            }
+        )
+
+        observeEvent(
             input$saveSpectra,
             {
-
-                output$results_test <-
-                    renderText({"Saving results to PDF"})
 
                 # Get raw file name
 
@@ -709,18 +791,17 @@ server <-
                     stringr::str_split_fixed(" = ", n = 2) %>%
                     .[2]
 
-                # Get list of sequence names
-                # Might not need this.. causes problems if a sequence
-                # has no validated fragments
+                # Load assigned fragments
 
-                # list_names <-
-                #     purrr::map_chr(
-                #         spec_objects(),
-                #         ~basename(.x) %>%
-                #             stringr::str_extract("[^_]+")
-                #     )
+                ass_frag <-
+                    readxl::read_xlsx(
+                        fs::path(
+                            dir_path(),
+                            paste0(fs::path_ext_remove(rawFile), "_assigned_fragments_MS2.xlsx")
+                        )
+                    )
 
-                # Save validated/invalidated plots to lists
+                # Save validated plots to list
 
                 validated_plots_list <-
                     reactiveValuesToList(validated_plots) %>%
@@ -728,15 +809,45 @@ server <-
                     # purrr::set_names(list_names) %>%
                     purrr::compact()
 
-                invalidated_plots_list <-
-                    reactiveValuesToList(invalidated_plots) %>%
-                    {.[rev(names(.))]} %>%
-                    # purrr::set_names(list_names) %>%
-                    purrr::compact()
-
-                # marrange and save plots
 
                 if (length(validated_plots_list) > 0) {
+
+                    # Extract data from ggplot labels
+
+                    label_data_valid <-
+                        purrr::map(
+                            unlist(validated_plots_list, recursive = F),
+                            ~.x[[1]][["layers"]][[2]][["geom_params"]][["label"]]
+                        ) %>%
+                        stringr::str_split_fixed("\n", n = 5) %>%
+                        tibble::as_tibble() %>%
+                        dplyr::select(V1, V2, V4) %>%
+                        dplyr::mutate(V4 = as.numeric(stringr::str_extract(V4, "\\d{1,4}"))) %>%
+                        purrr::set_names(
+                            c("sequence_name", "ion", "charge")
+                        )
+
+                    # Combine label data with assigned fragments, write spreadsheets
+
+                    validated_frags_spreadsheet <-
+                        dplyr::left_join(
+                            label_data_valid,
+                            ass_frag
+                        ) %>%
+                        dplyr::select(
+                            raw_filename,
+                            dplyr::everything()
+                        )
+
+                    writexl::write_xlsx(
+                        validated_frags_spreadsheet,
+                        fs::path(
+                            dir_path(),
+                            paste0(fs::path_ext_remove(rawFile), "_validated_fragments_MS2.xlsx")
+                        )
+                    )
+
+                    # marrange and save validated plots
 
                     valid_spectra_MS2_marrange <-
                         unlist(validated_plots_list, recursive = F) %>%
@@ -765,9 +876,62 @@ server <-
                         limitsize = FALSE
                     )
 
+                    # Remove validated plots to save space
+
+                    rm(validated_plots_list)
+                    rm(valid_spectra_MS2_marrange)
+
                 }
 
+
+                # Save invalidated plots to list
+
+                invalidated_plots_list <-
+                    reactiveValuesToList(invalidated_plots) %>%
+                    {.[rev(names(.))]} %>%
+                    # purrr::set_names(list_names) %>%
+                    purrr::compact()
+
+                # marrange and save invalidated plots
+
                 if (length(invalidated_plots_list) > 0) {
+
+                    # Extract data from ggplot labels
+
+                    label_data_invalid <-
+                        purrr::map(
+                            unlist(invalidated_plots_list, recursive = F),
+                            ~.x[[1]][["layers"]][[2]][["geom_params"]][["label"]]
+                        ) %>%
+                        stringr::str_split_fixed("\n", n = 5) %>%
+                        tibble::as_tibble() %>%
+                        dplyr::select(V1, V2, V4) %>%
+                        dplyr::mutate(V4 = as.numeric(stringr::str_extract(V4, "\\d{1,4}"))) %>%
+                        purrr::set_names(
+                            c("sequence_name", "ion", "charge")
+                        )
+
+                    # Combine label data with assigned fragments, write spreadsheets
+
+                    invalidated_frags_spreadsheet <-
+                        dplyr::left_join(
+                            label_data_invalid,
+                            ass_frag
+                        ) %>%
+                        dplyr::select(
+                            raw_filename,
+                            dplyr::everything()
+                        )
+
+                    writexl::write_xlsx(
+                        invalidated_frags_spreadsheet,
+                        fs::path(
+                            dir_path(),
+                            paste0(fs::path_ext_remove(rawFile), "_invalidated_fragments_MS2.xlsx")
+                        )
+                    )
+
+                    # marrange and save invalidated plots
 
                     invalid_spectra_MS2_marrange <-
                         unlist(invalidated_plots_list, recursive = F) %>%
@@ -796,106 +960,19 @@ server <-
                         limitsize = FALSE
                     )
 
-                }
+                    # Remove validated plots to save space
 
-                # Extract data from ggplot labels
-
-                if (length(validated_plots_list) > 0) {
-
-                    label_data_valid <-
-                        purrr::map(
-                            unlist(validated_plots_list, recursive = F),
-                            ~.x[[1]][["layers"]][[2]][["geom_params"]][["label"]]
-                        ) %>%
-                        stringr::str_split_fixed("\n", n = 4) %>%
-                        tibble::as_tibble() %>%
-                        dplyr::select(-V4) %>%
-                        dplyr::mutate(V3 = as.numeric(stringr::str_extract(V3, "\\d{1,4}"))) %>%
-                        purrr::set_names(
-                            c("sequence_name", "ion", "charge")
-                        )
+                    rm(invalidated_plots_list)
+                    rm(invalid_spectra_MS2_marrange)
 
                 }
 
-                if (length(invalidated_plots_list) > 0) {
+                # Let the user know it worked
 
-                    label_data_invalid <-
-                        purrr::map(
-                            unlist(invalidated_plots_list, recursive = F),
-                            ~.x[[1]][["layers"]][[2]][["geom_params"]][["label"]]
-                        ) %>%
-                        stringr::str_split_fixed("\n", n = 4) %>%
-                        tibble::as_tibble() %>%
-                        dplyr::select(-V4) %>%
-                        dplyr::mutate(V3 = as.numeric(stringr::str_extract(V3, "\\d{1,4}"))) %>%
-                        purrr::set_names(
-                            c("sequence_name", "ion", "charge")
-                        )
-
-                }
-
-                # Load assigned fragments
-
-                ass_frag <-
-                    readxl::read_xlsx(
-                        fs::path(
-                            dir_path(),
-                            paste0(fs::path_ext_remove(rawFile), "_assigned_fragments_MS2.xlsx")
-                        )
-                    )
-
-                # Combine label data with assigned fragments, write spreadsheets
-
-                if (length(validated_plots_list) > 0) {
-
-                    validated_frags_spreadsheet <-
-                        dplyr::left_join(
-                            label_data_valid,
-                            ass_frag
-                        ) %>%
-                        dplyr::select(
-                            raw_filename,
-                            dplyr::everything()
-                        )
-
-                    writexl::write_xlsx(
-                        validated_frags_spreadsheet,
-                        fs::path(
-                            dir_path(),
-                            paste0(fs::path_ext_remove(rawFile), "_validated_fragments_MS2.xlsx")
-                        )
-                    )
-
-                }
-
-                if (length(invalidated_plots_list) > 0) {
-
-                    invalidated_frags_spreadsheet <-
-                        dplyr::left_join(
-                            label_data_invalid,
-                            ass_frag
-                        ) %>%
-                        dplyr::select(
-                            raw_filename,
-                            dplyr::everything()
-                        )
-
-                    writexl::write_xlsx(
-                        invalidated_frags_spreadsheet,
-                        fs::path(
-                            dir_path(),
-                            paste0(fs::path_ext_remove(rawFile), "_invalidated_fragments_MS2.xlsx")
-                        )
-                    )
-
-                }
+                output$results_test <-
+                    renderText({"RESULTS SAVED"})
 
             }
-        )
-
-        observeEvent(
-            input$bookmark,
-            {session$doBookmark()}
         )
 
 
