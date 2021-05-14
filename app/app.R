@@ -314,7 +314,7 @@ server <-
                     truth_vec[[1]] <-
                         {
                             all(
-                                c("GEX_params.txt", "GEX_timers.csv") %in% files
+                                c("GEX_params.txt") %in% files
                             )
                         }
 
