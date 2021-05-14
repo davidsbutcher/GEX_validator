@@ -143,11 +143,11 @@ ui <-
                             ),
                             actionButton("truepos", "True Positive", icon = icon("check-circle")),
                             actionButton("falsepos", "False Positive", icon = icon("times-circle")),
-                            actionButton("goback", "Go Back", icon = icon("backward")),
-                            br(),
-                            br(),
-                            actionButton("validateRemaining", "VALIDATE REMAINING", icon = icon("skull")),
-                            actionButton("invalidateRemaining", "INVALIDATE REMAINING", icon = icon("skull"))
+                            actionButton("goback", "Go Back", icon = icon("backward"))
+                            # br(),
+                            # br(),
+                            # actionButton("validateRemaining", "VALIDATE REMAINING", icon = icon("skull")),
+                            # actionButton("invalidateRemaining", "INVALIDATE REMAINING", icon = icon("skull"))
                         ),
                         tabPanel(
                             "Validated",
@@ -742,23 +742,22 @@ server <-
         observeEvent(
             input$confirmValRemain,
             {
-                for (i in seq_along(length(spec_objects()))) {
+                # This code is nonfunctional. Shelved until I can figure it out. - DSB
 
-                    iterator$i <- i
+                length_spec_objects_temp <- length(spec_objects())
+                spec_objects_length_temp <- spec_objects_length()
+                spec_objects_temp <- spec_objects()
 
-                    for (j in seq_along(spec_objects_length())) {
+                for (i in seq_along(length_spec_objects_temp)) {
 
-                        iterator$j <- j
+                    for (j in seq_along(spec_objects_length_temp)) {
 
-                        # if (is.null(validated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]]) == TRUE & is.null(invalidated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]]) == TRUE) {
-
-                        validated_plots[[as.character(iterator$i)]][[as.character(iterator$j)]] <- reactive_plot()
-
-                        # }
+                        validated_plots[[as.character(i)]][[as.character(j)]] <-
+                            readRDS(spec_objects_temp[[i]])[[1]][[j]]
 
                     }
 
-                    complete_seqs[[as.character(iterator$i)]] <- TRUE
+                    complete_seqs[[as.character(i)]] <- TRUE
 
                 }
             }

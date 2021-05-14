@@ -3,6 +3,8 @@
 .Rdata
 .httr-oauth
 .DS_Store
+.gitignore
+GEX_validator.Rproj
 
 app/shiny_bookmarks/
 
