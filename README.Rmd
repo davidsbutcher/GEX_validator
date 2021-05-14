@@ -1,0 +1,20 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# GEX Validator
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+GEX Validator is a Shiny app used to quickly manually validate the output of GEX::make_every_XIC_MS2_single. See the [GEX page on Github](https://github.com/davidsbutcher/GEX).
+
