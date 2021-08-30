@@ -493,14 +493,14 @@ server <-
                     if (spec_objects_length() != 0 && spec_objects_length() > iterator$j) {
 
                         readRDS(spec_objects()[[iterator$i]])[[1]][[iterator$j+1]] %>%
-                            {.[[1]][["layers"]][[2]][["geom_params"]][["label"]]} %>%
+                            {.[[1]][["layers"]][[2]][["computed_geom_params"]][["label"]]} %>%
                             stringr::str_split_fixed("\n", n = 5) %>%
-                            tibble::as_tibble() %>%
-                            dplyr::select(V1, V2, V4) %>%
-                            dplyr::mutate(V4 = as.numeric(stringr::str_extract(V4, "\\d{1,4}"))) %>%
+                            tibble::as_tibble(.name_repair = "unique") %>%
+                            dplyr::select(1, 2, 4) %>%
                             purrr::set_names(
                                 c("sequence_name", "ion", "charge")
-                            )
+                            ) %>%
+                            dplyr::mutate(charge = as.numeric(stringr::str_extract(charge, "\\d{1,4}")))
 
                     } else {
 
@@ -879,7 +879,7 @@ server <-
                     label_data_valid <-
                         purrr::map(
                             unlist(validated_plots_list, recursive = F),
-                            ~.x[[1]][["layers"]][[2]][["geom_params"]][["label"]]
+                            ~.x[[1]][["layers"]][[2]][["computed_geom_params"]][["label"]]
                         ) %>%
                         stringr::str_split_fixed("\n", n = 5) %>%
                         tibble::as_tibble() %>%
@@ -962,7 +962,7 @@ server <-
                     label_data_invalid <-
                         purrr::map(
                             unlist(invalidated_plots_list, recursive = F),
-                            ~.x[[1]][["layers"]][[2]][["geom_params"]][["label"]]
+                            ~.x[[1]][["layers"]][[2]][["computed_geom_params"]][["label"]]
                         ) %>%
                         stringr::str_split_fixed("\n", n = 5) %>%
                         tibble::as_tibble() %>%
