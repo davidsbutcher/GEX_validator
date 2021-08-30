@@ -136,6 +136,30 @@ ui <-
                                     )
                                 )
                             ),
+                            h5(
+                                style = "color:red;text-align:left;",
+                                splitLayout(
+                                    splitLayout(
+                                        cellWidths = 175,
+                                        "NEXT SEQ:",
+                                        textOutput("nextseq_seqname")
+                                    )
+                                ),
+                                splitLayout(
+                                    splitLayout(
+                                        cellWidths = 175,
+                                        "ION:",
+                                        textOutput("nextseq_ion")
+                                    )
+                                ),
+                                splitLayout(
+                                    splitLayout(
+                                        cellWidths = 175,
+                                        "CHARGE:",
+                                        textOutput("nextseq_charge")
+                                    )
+                                )
+                            ),
                             plotOutput(
                                 "plot",
                                 width = "1400px",
@@ -194,9 +218,17 @@ server <-
 
         # Mutable outputs ---------------------------------------------------------
 
+        output$nextseq_seqname <-
+            renderText({reactive_next_plot_info()$sequence_name})
+
+        output$nextseq_ion <-
+            renderText({reactive_next_plot_info()$ion})
+
+        output$nextseq_charge <-
+            renderText({reactive_next_plot_info()$charge})
+
         output$sequence_i <-
             renderText({test_seqs()[iterator$i]})
-
 
         output$specnum_j <-
             renderText(
@@ -420,7 +452,6 @@ server <-
                 }
             )
 
-
         reactive_plot <-
             reactive(
                 {
@@ -444,6 +475,39 @@ server <-
                             "sequence_i",
                             choices = test_seqs(),
                             selected = test_seqs()[iterator$i]
+                        )
+
+                    }
+
+                }
+            )
+
+        reactive_next_plot_info <-
+            reactive(
+                {
+                    validate(
+                        need(spec_objects(), ""),
+                        need(spec_objects_length(), "")
+                    )
+
+                    if (spec_objects_length() != 0 && spec_objects_length() > iterator$j) {
+
+                        readRDS(spec_objects()[[iterator$i]])[[1]][[iterator$j+1]] %>%
+                            {.[[1]][["layers"]][[2]][["geom_params"]][["label"]]} %>%
+                            stringr::str_split_fixed("\n", n = 5) %>%
+                            tibble::as_tibble() %>%
+                            dplyr::select(V1, V2, V4) %>%
+                            dplyr::mutate(V4 = as.numeric(stringr::str_extract(V4, "\\d{1,4}"))) %>%
+                            purrr::set_names(
+                                c("sequence_name", "ion", "charge")
+                            )
+
+                    } else {
+
+                        tibble::tibble(
+                            "sequence_name" = NA,
+                            "ion" = NA,
+                            "charge" = NA
                         )
 
                     }
@@ -483,7 +547,6 @@ server <-
 
                 }
             )
-
 
         # Reactive values ---------------------------------------------------------
 
@@ -653,7 +716,7 @@ server <-
             ),
             {
                 # Remove the output$results_test value if truepos or falsepos
-                #are pressed
+                # are pressed
 
                 output$results_test <- NULL
 
@@ -881,7 +944,6 @@ server <-
                     rm(valid_spectra_MS2_marrange)
 
                 }
-
 
                 # Save invalidated plots to list
 
