@@ -916,8 +916,8 @@ server <-
                         purrr::flatten() %>%
                         gridExtra::marrangeGrob(
                             grobs = .,
-                            ncol = 5,
-                            nrow = 3,
+                            ncol = 3,
+                            nrow = 2,
                             top = rawFile
                         )
 
@@ -933,7 +933,7 @@ server <-
                                 ext = "pdf"
                             ),
                         plot = valid_spectra_MS2_marrange,
-                        width = 20,
+                        width = 18,
                         height = 12,
                         limitsize = FALSE
                     )
@@ -999,8 +999,8 @@ server <-
                         purrr::flatten() %>%
                         gridExtra::marrangeGrob(
                             grobs = .,
-                            ncol = 5,
-                            nrow = 3,
+                            ncol = 3,
+                            nrow = 2,
                             top = rawFile
                         )
 
@@ -1016,7 +1016,7 @@ server <-
                                 ext = "pdf"
                             ),
                         plot = invalid_spectra_MS2_marrange,
-                        width = 20,
+                        width = 18,
                         height = 12,
                         limitsize = FALSE
                     )
