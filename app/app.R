@@ -448,7 +448,9 @@ server <-
                         need(spec_objects(), "")
                     )
 
-                    length(readRDS(spec_objects()[[iterator$i]])[[1]])
+                    # length(readRDS(spec_objects()[[iterator$i]])[[1]])
+
+                    length(purrr::flatten(readRDS(spec_objects()[[iterator$i]])[[1]]))
                 }
             )
 
@@ -462,7 +464,12 @@ server <-
 
                     if (spec_objects_length() != 0) {
 
-                        readRDS(spec_objects()[[iterator$i]])[[1]][[iterator$j]]
+                        # readRDS(spec_objects()[[iterator$i]])[[1]][[iterator$j]]
+
+                        readRDS(spec_objects()[[iterator$i]])[[1]] %>%
+                            purrr::flatten() %>%
+                            {.[[iterator$j]]}
+
 
                     } else {
 
@@ -490,10 +497,14 @@ server <-
                         need(spec_objects_length(), "")
                     )
 
-                    if (spec_objects_length() != 0 && spec_objects_length() > iterator$j) {
+                    if (spec_objects_length() != 0 && iterator$j < spec_objects_length()) {
 
-                        readRDS(spec_objects()[[iterator$i]])[[1]][[iterator$j+1]] %>%
-                            {.[[1]][["layers"]][[2]][["computed_geom_params"]][["label"]]} %>%
+                        # readRDS(spec_objects()[[iterator$i]])[[1]][[iterator$j+1]] %>%
+
+                        readRDS(spec_objects()[[iterator$i]])[[1]] %>%
+                            purrr::flatten() %>%
+                            {.[[iterator$j + 1]]} %>%
+                            {.[["layers"]][[2]][["computed_geom_params"]][["label"]]} %>%
                             stringr::str_split_fixed("\n", n = 5) %>%
                             tibble::as_tibble(.name_repair = "unique") %>%
                             dplyr::select(1, 2, 4) %>%
@@ -879,7 +890,7 @@ server <-
                     label_data_valid <-
                         purrr::map(
                             unlist(validated_plots_list, recursive = F),
-                            ~.x[[1]][["layers"]][[2]][["computed_geom_params"]][["label"]]
+                            ~.x[["layers"]][[2]][["computed_geom_params"]][["label"]]
                         ) %>%
                         stringr::str_split_fixed("\n", n = 5) %>%
                         tibble::as_tibble() %>%
@@ -913,7 +924,6 @@ server <-
 
                     valid_spectra_MS2_marrange <-
                         unlist(validated_plots_list, recursive = F) %>%
-                        purrr::flatten() %>%
                         gridExtra::marrangeGrob(
                             grobs = .,
                             ncol = 3,
@@ -962,7 +972,7 @@ server <-
                     label_data_invalid <-
                         purrr::map(
                             unlist(invalidated_plots_list, recursive = F),
-                            ~.x[[1]][["layers"]][[2]][["computed_geom_params"]][["label"]]
+                            ~.x[["layers"]][[2]][["computed_geom_params"]][["label"]]
                         ) %>%
                         stringr::str_split_fixed("\n", n = 5) %>%
                         tibble::as_tibble() %>%
@@ -996,7 +1006,6 @@ server <-
 
                     invalid_spectra_MS2_marrange <-
                         unlist(invalidated_plots_list, recursive = F) %>%
-                        purrr::flatten() %>%
                         gridExtra::marrangeGrob(
                             grobs = .,
                             ncol = 3,
